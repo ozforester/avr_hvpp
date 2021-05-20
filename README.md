@@ -14,3 +14,6 @@ All work except kicad were processed on orange pc.<br>
 It's very hard to edit pcb and schematics on orange<br>
 (opengl works and 3d model turns but don't do that,<br>
 really, beleve me)
+
+![screenshot](HVPP.JPG)
+
