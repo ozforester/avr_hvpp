@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name Hvpp)(type KiCad)(uri /home/user/Desktop/kicad/Hvpp)(options "")(descr ""))
+)
