@@ -20,7 +20,7 @@ really, beleve me)
 
 And more. I'm learning now. Doing a lot of compromised<br>
 steps in programming. These are like a practical answers<br>
-for some questions and thus not perfect<br>
+to some questions and thus not perfect<br>
 
 
 ![screenshot](HVPP.JPG)
