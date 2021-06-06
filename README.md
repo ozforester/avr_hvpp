@@ -10,7 +10,8 @@ write code in arduino ide..<br>
 I'm thinking about coding main menu in C and others: <br>
 lcd, twi, adc and hvpp libraries in assembly.<br>
 Pure C version I coded was compiled to 8k (w/o a few bytes)<br>
-You can find a working hex file on hardware folder.<br>
+Assembly version is changing now. If you need test one working<br>
+You can find a hex file named chiphealer.hex on hardware folder.<br>
 Some more errors has to be fixed and I may commit its gas version too<br>
 
 All work except kicad were processed on orange pc.<br>
