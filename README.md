@@ -2,10 +2,10 @@
 
 Simple hvpp programmer on atmega8 and 1602A lcd with twi extention<br>
 
-Kicad schematics and pcb's coming soon.
-
-Sure you can plug mega328 into socket and<br>
-write code in arduino ide..<br>
+Kicad schematics and pcb's are placed in hardware folder.
+Sure you can even plug mega328 into master socket and<br>
+write your code in arduino ide and modify pcb for another package.<br>
+Kicad is the most useful tool to change things you like<br>
 
 I'm thinking about coding main menu in C and others: <br>
 lcd, twi, adc and hvpp libraries in assembly.<br>
