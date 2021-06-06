@@ -6,7 +6,7 @@
 ; JHD162A HD44780 via twi extension PCF8574AT
 ; Four buttons pad voltage divider connected to adc port.
 ; Two DIP28 sockets. One for programmer and one for target chip
-; Schematics and PCB sources: https://github.com/ozforester/avr_hvpp
+; Schematics and PCB sources: https://github.com/ozforester/avr_hvpp/hardware
 ; It utilizes AVR HVPP protocol to change fuses or erase flash and eeprom
 ; lcd twi address autodetected each time this programmer switched on
 ; once after erasing the programmer keys calibration starts and remember levels
