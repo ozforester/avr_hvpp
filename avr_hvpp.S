@@ -12,7 +12,8 @@
 ; once after erasing the programmer keys calibration starts and remember levels
 ; debug and error state blinks with B6 (bottom led of Q1 base network)
 
-; hvpp_write_fuse cond.
+; hvpp_write_fuse
+; lcd_cur position
 
 /*
 
@@ -81,6 +82,8 @@
 ; registers
 
 accum   = 0	; r0
+row	= 4	; cursor row
+column	= 5	; cursor pos
 hvppc   = 6	; hvpp command byte
 hvppah  = 7	; hvpp address high
 hvppal  = 8	; hvpp address low
@@ -181,25 +184,27 @@ main:				;
 	loop: rjmp loop		;
 ret				;
 
-; -------------------------  H V P P  M E N U  -----------------------
+; --------------  H V P P  M E N U  --------------
 
 hvpp_header:			;
         rcall lcd_clr           ;
         ldi len, msg16          ; lcd address
         rcall print_msg         ;
-	rcall lcd_cur		;
+	ldi temp, 1		;
+	mov row, temp		;
+	clr temp		;
+	mov column, temp	;
+	rcall delay_1s		;
+	rcall lcd_clr		;
         ldi len, msg17          ; free sram
         rcall print_msg         ;
         rcall lcd_clr           ;
         ldi len, msg18          ; cheap healer
         rcall print_msg         ;
-        rcall lcd_cur           ;
         ldi len, msg19          ; chip killer
         rcall print_msg         ;
-        rcall lcd_cur           ;
         ldi len, msg20          ; -------
         rcall print_msg         ;
-        rcall lcd_cur           ;
         ldi len, msg21          ; ozforester
         rcall print_msg         ;
 ret				;
@@ -260,9 +265,9 @@ hvpp_menu:
 	lf1:			;
         rcall menu_action       ;
         pressed_right:		;
-        ldi temp, 2             ;
-        cp item, temp           ;
-        brsh rg1                ;
+        ;ldi temp, 2             ; пока убрал ограничение для всех уровней
+        ;cp item, temp           ;
+        ;brsh rg1                ;
         mov temp, item          ;
         inc temp                ;
         mov item, temp          ;
@@ -284,21 +289,29 @@ hvpp_menu:
 	rcall error		; wrong state
 	actions:		;
 	ldi temp, 0		;
-	cpse level, temp	; level 0
+	cpse level, temp	; level 0 (choose command)
 	rjmp am1		;
 	rjmp level0		;
 	am1:			;
 	inc temp		;
-	cpse level, temp	; level 1
+	cpse level, temp	; level 1 (get signature, erase flash, read fuses)
 	rjmp am2		;
 	rjmp level1		;
 	am2:			;
         inc temp                ;
-        cpse level, temp        ; level 2
+        cpse level, temp        ; level 2 (choose fuse)
         rjmp am3                ;
         rjmp level2             ;
 	am3:			;
-	rcall error		; wrong state
+       inc temp                ;
+        cpse level, temp        ; level 3 (change fuse)
+        rjmp am4                ;
+        rjmp level3             ;
+        am4:                    ;
+
+
+
+	rcall error		; got wrong level
 	level0:			;
 	ldi temp, 0		;
 	cp item, temp		;
@@ -329,6 +342,9 @@ hvpp_menu:
         ldi temp, 0             	;
         cp item, temp           	;
         breq l1i0               	;
+        ldi temp, 1                     ;
+        cp item, temp                   ;
+        breq l1i1                       ;
         ldi temp, 2    			;
         cp item, temp  			;
         breq l1i2	   		;
@@ -337,25 +353,63 @@ hvpp_menu:
         rcall lcd_clr           	;
         ldi len, msg1           	; "signature"
         rcall print_msg         	;
-	rcall lcd_cur			;
 	rcall hvpp_read_signature	;
 	rcall print_signature		;
         rjmp menu_loop          	;
+        l1i1:                   ;
+	clr temp		;
+	mov column, temp	;
+	inc temp		;
+	mov row, temp		;
+        rcall lcd_cur           ; 1,0
+        ldi len, msg8           ; "erased"
+        rcall print_msg         ;
+	rcall delay_500ms	;
+	rcall lcd_clr		;
+        ldi len, msg2           ;
+        rcall print_msg         ;
+	mov temp, level		;
+	dec temp		;
+	mov level, temp		;
+        rjmp menu_loop          ;
 	l1i2:			;
         rcall lcd_clr   	;
         ldi len, msg4   	; "LF---LB"
         rcall print_msg 	;
+	rcall hvpp_read_fuses	;
+	rcall print_fuses	;
         rjmp menu_loop  	;
 	level2:			;
-        ldi temp, 2     	;
-        cp item, temp  		;
-        breq l2i2	   	;
-        rjmp menu_loop  	;
+        ;ldi temp, 2     	;
+        ;cp item, temp  	;
+        ;breq l2i2	   	;
+        ;rjmp menu_loop  	;
 	l2i2:			;
         rcall lcd_clr   	;
-        ldi len, msg20  	; "-------"
+	clr temp		;
+	mov row, temp		; row 0
+	mov column, item	; pos = item
+	rcall lcd_cur		; 0, pos
+        ldi len, msg5		; "="
         rcall print_msg 	;
+	rcall print_fuses	;
         rjmp menu_loop  	;
+        level3:                 ; rotate nibbles
+
+        rjmp menu_loop          ;
+
+
+/*
+            if( level == 2 && item == 0) { fuses[0] += 0x10; break; } // cycles low fuse hi tetrade
+            if( level == 2 && item == 1) { if( ( fuses[0] & 0xf ) == 0xf ) fuses[0] -= 0xf; else fuses[0]++; break; } // cycles low fuse low tetrade
+            if( level == 2 && item == 4) { fuses[1] += 0x10; break; } // cycles high fuse hi tetrade (with byte overflow)
+            if( level == 2 && item == 5) { if( ( fuses[1] & 0xf ) == 0xf ) fuses[1] -= 0xf; else fuses[1]++; break; } // cycles high fuse low tetrade
+            if( level == 2 && item == 8 ) { fuses[2] += 0x10; break; } // cycles ext fuse hi tetrade
+            if( level == 2 && item == 9) {  if( ( fuses[2] & 0xf ) == 0xf ) fuses[2] -= 0xf; else fuses[2]++; break; } // cycles ext fuse low tetrade
+            if( level == 2 && item == 12) { fuses[3] = ( ( fuses[3] + 0x10 ) | 0xC0 ); break; } // cycles lock byte hi tetrade (bits 5 and 7 are reserved to high)
+            if( level == 2 && item == 13) { if( ( fuses[3] & 0xf ) == 0xf ) fuses[3] -= 0xf; else fuses[3]++; break; } // cycles lock byte low tetrade
+*/
+
 ret
 
 ; ---------------  H V P P   R O U T I N E S  -------------
@@ -436,7 +490,7 @@ hvpp_chip_erase:			;
 	rcall hvpp_off			;
 ret					;
 
-hvpp_write_fuses:			;
+hvpp_write_fuses:			; write fuses from sram to chip
 	rcall hvpp_on			;
 	; low fuse
 	lds data, low_fuse		;
@@ -498,7 +552,7 @@ hvpp_write_lock:
 	rcall delay_20ms		; waits RDY
 ret					;
 
-hvpp_read_fuses_and_lock:
+hvpp_read_fuses:		; read chip and write to sram
 	rcall hvpp_on		;
 	ldi data, 0b00000100	; read fuses
 	rcall hvpp_load_command	;
@@ -890,8 +944,47 @@ ret                             ;
 
 ; ----------------- P R I N T I N G -----------------
 
+print_fuses:                	        ;
+        lds data, low_fuse             	;
+        ldi temp, 0                     ;
+        mov column, temp                ; column 1
+        ldi temp, 1                     ;
+        mov row, temp                   ; row 1
+	rcall lcd_cur			;
+        rcall print_hex_byte           	; low fuse
+
+        lds data, high_fuse            	;
+        ldi temp, 4                     ;
+        mov column, temp                ; column 1
+        ldi temp, 1                     ;
+        mov row, temp                   ; row 1
+        rcall lcd_cur                   ;
+        rcall print_hex_byte           	; high fuse
+
+        lds data, ext_fuse             	;
+        ldi temp, 8                     ;
+        mov column, temp                ; column 1
+        ldi temp, 1                     ;
+        mov row, temp                   ; row 1
+        rcall lcd_cur                   ;
+        rcall print_hex_byte           	; ext fuse
+
+        lds data, lock_byte            	;
+        ldi temp, 12                    ;
+        mov column, temp                ; column 1
+        ldi temp, 1                     ;
+        mov row, temp                   ; row 1
+        rcall lcd_cur                   ;
+        rcall print_hex_byte           	; lock byte
+ret                                    	;
+
 print_signature:		;
-	lds char, signature	;
+	ldi temp, 1		;
+	mov row, temp		; row 1
+	ldi temp, 0		;
+	mov column, temp	; column 1
+	rcall lcd_cur		;
+        lds char, signature     ;
 	rcall print_hex_byte	;
         lds char, signature+1   ;
         rcall print_hex_byte    ;
@@ -901,7 +994,6 @@ ret				;
 
 print_pos:      	        ;
         rcall lcd_clr           ;
-        rcall lcd_home          ;
         mov char, level         ;
         rcall print_hex_byte    ;
         mov char, item          ;
@@ -910,7 +1002,6 @@ ret                             ;
 
 print_key_code:			;
 	rcall lcd_clr		;
-        rcall lcd_home          ;
 	mov char, key		;
 	rcall print_hex_byte	;
 ret				;
@@ -932,8 +1023,12 @@ ret                             ;
 
 print_twi_address:		;
 	ldi len, msg14		;
-	rcall lcd_home		;
+	rcall lcd_clr		;
 	rcall print_msg		;
+	clr temp		;
+	mov column, temp	; column 0
+	inc temp		;
+	mov row, temp		; row 1
         rcall lcd_cur           ;
 	;ldi zh, 0x00		;
 	;mov zl, address	;
@@ -944,9 +1039,11 @@ print_twi_address:		;
 ret				;
 
 print_ok:			;
+	rcall lcd_clr		;
 	ldi len, msg15		;
-	rcall lcd_cur		;
 	rcall print_msg		;
+        rcall delay_100ms       ;
+        rcall delay_100ms       ;
 	rcall delay_100ms	;
 ret				;
 
@@ -968,9 +1065,9 @@ print_msg:                      ;
         rjmp pm1	        ;
         pm2:                    ;
         rcall twi_stop          ;
-        rcall delay_100ms       ;
-        rcall delay_100ms       ;
-        rcall delay_100ms       ;
+        ;rcall delay_100ms       ;
+        ;rcall delay_100ms       ;
+        ;rcall delay_100ms       ;
 ret                             ;
 
 print_eeprom_byte:		;
@@ -986,7 +1083,6 @@ ret				;
 print_hex_byte:			;
         rcall twi_start         ;
         rcall twi_sla_w         ;
-	;
 	; high tetr
 	push char		;
 	swap char		;
@@ -997,7 +1093,6 @@ print_hex_byte:			;
 	subi char, -7
 	phb1:
 	rcall lcd_char
-	;
 	; low tetr
         pop char	        ;
         andi char, 0x0f         ;
@@ -1007,7 +1102,6 @@ print_hex_byte:			;
         subi char, -7
         phb2:
         rcall lcd_char
-	;
         rcall twi_stop          ;
 ret				;
 
@@ -1015,7 +1109,7 @@ print_ascii:			;
         rcall twi_start         ;
         rcall twi_sla_w         ;
 
-        ; if sample < 1000 go to b100
+        ; if < 1000 go 100
         cpi zh, 0x03            ;
         brlo pa2                ;
         cpi zl, 0xe8            ;
@@ -1062,32 +1156,68 @@ ret				;
 ; ---------------- L C D   S P E C I F I C  ------------------
 
 
-lcd_cur:			; cursor position line 2
+lcd_cur:			; uses row and column
+	rcall twi_start		;
+	rcall twi_sla_w		;
+	rcall lcd_wait_bf 	;
+        rcall lcd_instr_w       ;
+
+	; next line offset	;
+	clr char		;
+        ldi temp, 0             ; -xxx xxxx ddram address
+        ldi temp2, 0xc0         ; 2 line offset
+        cpse row, temp          ; if row!=0 then
+        add char, temp2         ; add offset
+        add char, column        ; and add column
+
+	; high nibble
+	clr data		;
+        rcall d7_high           ; set ddram addr is 1aaa aaaa
+        sbrc char, 6            ;
+        rcall d6_high           ;
+        sbrc char, 5            ;
+        rcall d5_high           ;
+        sbrc char, 4            ;
+        rcall d4_high           ;
+        rcall twi_data_w        ;
+        rcall lcd_e_pulse       ;
+
+        ; low nibble            ;
+        clr data                ;
+        sbrc char, 3            ;
+        rcall d7_high           ;
+        sbrc char, 2            ;
+        rcall d6_high           ;
+        sbrc char, 1            ;
+        rcall d5_high           ;
+        sbrc char, 0            ;
+        rcall d4_high           ;
+        rcall twi_data_w        ;
+        rcall lcd_e_pulse       ;
+
+	rcall twi_stop		;
+ret				;
+
+lcd_line2:			; cursor position line 2
         rcall twi_start         ;
         rcall twi_sla_w         ;
         rcall lcd_wait_bf           ;
         andi data, 0x0F         ; clear data bits
         rcall d7_high           ; 11xx - dram
         rcall d6_high           ;
-        ;rcall d5_high          ;
-        ;rcall d4_high          ;
         rcall lcd_instr_w           ;
         rcall lcd_e_pulse       ; take
         andi data, 0x0F         ; clear data bits
-        ;rcall d7_high          ; xxxx absolute address
-        ;rcall d6_high          ;
-        ;rcall d5_high          ;
-        ;rcall d4_high          ;
         rcall lcd_e_pulse       ;
         rcall twi_stop          ;
 ret				;
 
-lcd_home:			; 0,0
+lcd_home:			; pos 0,0
         rcall twi_start         ;
         rcall twi_sla_w         ;
-        rcall lcd_wait_bf           ;
+        rcall lcd_wait_bf       ;
         andi data, 0x0F         ; clear data bits
-        rcall lcd_instr_w           ; 0000 - display
+        rcall lcd_instr_w       ; 0000 - display
         rcall lcd_e_pulse       ; take
         rcall d5_high           ; 001* - home
         rcall lcd_e_pulse       ;
@@ -1104,6 +1234,7 @@ lcd_clr:                        ; clear screen
         rcall d4_high           ; 0001 - clear
         rcall lcd_e_pulse       ;
 	rcall twi_stop		;
+	rcall lcd_home		;
 ret                             ;
 
 lcd_char:			; write one char
@@ -1351,30 +1482,22 @@ ret                             ;
 
 ; --------- A D C -----------
 
-adc_read:			; ADC3 or PC3
+adc_read:			;
         sbi ADCSRA, ADSC        ; start conversion
-        adc:
+        adc:			;
         sbis ADCSRA, ADIF       ; conversion complete
         rjmp adc                ;
-        in sample, ADCL         ; lsb sample
-	lsr sample		; 0xxx xxxx
-	lsr sample		; 00xx xxxx
-        in temp, ADCH           ; msb sample
-	andi temp, 0x03		; ---- --xx
-	swap temp		;--xx ----
-        lsl temp                ;
-	lsl temp		; xx-- ----
-        or sample, temp         ; single byte
+	in sample, ADCH		; 8 enough
 ret
 
 adc_init:
-        cbi DDRC, PC3           ; C3 as input
-        sbi ADMUX, REFS0        ;
-        sbi ADMUX, REFS1        ; internal reference 2.56
-        sbi ADMUX, MUX1         ;
-        sbi ADMUX, MUX0         ; mux 3
-        sbi ADCSRA, ADPS2       ;
-        sbi ADCSRA, ADPS1       ; prescaler 62.5 kHz
+        sbi ADMUX, REFS0        ; internal reference
+        sbi ADMUX, REFS1        ; 2.56
+        sbi ADMUX, MUX1         ; mux
+        sbi ADMUX, MUX0         ; PC3
+        sbi ADMUX, ADLAR        ; left justified result
+        sbi ADCSRA, ADPS2       ; 16
+        sbi ADCSRA, ADPS1       ; 64
         sbi ADCSRA, ADEN        ; enable adc
         sbi ADCSRA, ADSC        ; start conversion
 ret
@@ -1503,6 +1626,14 @@ delay_1s:			;
         rcall delay_100ms       ;
         rcall delay_100ms       ;
         rcall delay_100ms       ;
+        rcall delay_100ms       ;
+        rcall delay_100ms       ;
+        rcall delay_100ms       ;
+        rcall delay_100ms       ;
+        rcall delay_100ms       ;
+ret				;
+
+delay_500ms:			;
         rcall delay_100ms       ;
         rcall delay_100ms       ;
         rcall delay_100ms       ;
