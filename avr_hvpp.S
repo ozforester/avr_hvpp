@@ -12,9 +12,6 @@
 ; once after erasing the programmer keys calibration starts and remember levels
 ; debug and error state blinks with B6 (bottom led of Q1 base network)
 
-; hvpp_write_fuse
-; lcd_cur position
-
 /*
 
  SIGNAL   PROGARMMER  		TARGET
@@ -394,21 +391,61 @@ hvpp_menu:
         rcall print_msg 	;
 	rcall print_fuses	;
         rjmp menu_loop  	;
-        level3:                 ; rotate nibbles
 
+        level3:                 ;
+	mov temp, item		;
+	cpi temp, 0		;
+	breq l3a		;
+        cpi temp, 1             ;
+        breq l3a                ;
+        cpi temp, 4             ;
+        breq l3b                ;
+        cpi temp, 5             ;
+        breq l3b                ;
+        cpi temp, 8             ;
+        breq l3c                ;
+        cpi temp, 9             ;
+        breq l3c                ;
+        cpi temp, 12            ;
+        breq l3d                ;
+        cpi temp, 13            ;
+        breq l3d                ;
+        l3end:                  ;
+        ldi temp, 2             ;
+        mov item, temp          ;
+        mov level, temp         ;
         rjmp menu_loop          ;
 
+	l3a:			;
+        rjmp add_lf             ;
+        l3b:                    ;
+        rjmp add_hf             ;
+	l3c:			;
+        rjmp add_ef             ;
+	l3d:			;
+        rjmp add_lb             ;
 
-/*
-            if( level == 2 && item == 0) { fuses[0] += 0x10; break; } // cycles low fuse hi tetrade
-            if( level == 2 && item == 1) { if( ( fuses[0] & 0xf ) == 0xf ) fuses[0] -= 0xf; else fuses[0]++; break; } // cycles low fuse low tetrade
-            if( level == 2 && item == 4) { fuses[1] += 0x10; break; } // cycles high fuse hi tetrade (with byte overflow)
-            if( level == 2 && item == 5) { if( ( fuses[1] & 0xf ) == 0xf ) fuses[1] -= 0xf; else fuses[1]++; break; } // cycles high fuse low tetrade
-            if( level == 2 && item == 8 ) { fuses[2] += 0x10; break; } // cycles ext fuse hi tetrade
-            if( level == 2 && item == 9) {  if( ( fuses[2] & 0xf ) == 0xf ) fuses[2] -= 0xf; else fuses[2]++; break; } // cycles ext fuse low tetrade
-            if( level == 2 && item == 12) { fuses[3] = ( ( fuses[3] + 0x10 ) | 0xC0 ); break; } // cycles lock byte hi tetrade (bits 5 and 7 are reserved to high)
-            if( level == 2 && item == 13) { if( ( fuses[3] & 0xf ) == 0xf ) fuses[3] -= 0xf; else fuses[3]++; break; } // cycles lock byte low tetrade
-*/
+	add_lf:			;
+	ldi temp, 0		;
+	breq alf		;
+	lds temp, low_fuse	; h-nibble
+	add temp, 0x10		;
+	sts low_fuse, temp	;
+        rjmp l3end		;
+	alf:			; l-nibble
+	lds temp, low_fuse	;
+	add temp, 0x01		;
+        sts low_fuse, temp      ;
+        rjmp l3end		;
+
+	add_hf:			;
+        rjmp l3end	        ;
+
+	add_ef:			;
+        rjmp l3end              ;
+	add_lb:			;
+
+        rjmp l3end	        ;
 
 ret
 
