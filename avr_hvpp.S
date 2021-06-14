@@ -146,7 +146,7 @@ chip4: .asciz "mega328"
 .section .bss
 
 signature: .byte 0,0,0		; chip signature
-chipname:  .asciz "-unknown-"	; chip name
+chipname:  .byte 0		; chip name
 low_fuse:  .byte 0		;
 high_fuse: .byte 0              ;
 ext_fuse:  .byte 0              ;
@@ -271,11 +271,11 @@ hvpp_menu:
 	rg1:			;
         rcall menu_action       ;
 	pressed_enter:		;
-        ldi temp, 2             ;
+        ldi temp, 4             ; 3 - pressed in fuse edit mode
         cp level, temp          ;
-        brsh ent1               ;
+        brsh ent1               ; same or higher >3
         mov temp, level         ;
-        inc temp                ;
+        inc temp                ; level++
         mov level, temp         ;
 	ent1:			;
         rcall menu_action       ;
@@ -305,10 +305,8 @@ hvpp_menu:
         rjmp am4                ;
         rjmp level3             ;
         am4:                    ;
-
-
-
 	rcall error		; got wrong level
+
 	level0:			;
 	ldi temp, 0		;
 	cp item, temp		;
@@ -392,7 +390,8 @@ hvpp_menu:
 	rcall print_fuses	;
         rjmp menu_loop  	;
 
-        level3:                 ;
+        level3:                 ; нажат энтер на выбранном ниббле фьюза
+        ;rcall error             ; debug (сюда попадаем)
 	mov temp, item		;
 	cpi temp, 0		;
 	breq l3a		;
@@ -417,6 +416,7 @@ hvpp_menu:
         rjmp menu_loop          ;
 
 	l3a:			;
+        ;rcall error             ; debug (сюда попали)
         rjmp add_lf             ;
         l3b:                    ;
         rjmp add_hf             ;
@@ -426,17 +426,23 @@ hvpp_menu:
         rjmp add_lb             ;
 
 	add_lf:			;
-	ldi temp, 0		;
+        ;rcall error             ; debug (сюда попали)
+	cpi temp, 0		;
 	breq alf		;
+	;rcall error		; debug (сюда попадаем с 1 позицией)
 	lds temp, low_fuse	; h-nibble
-	add temp, 0x10		;
+	ldi temp2, 0x10		;
+	add temp, temp2		;
 	sts low_fuse, temp	;
         rjmp l3end		;
-	alf:			; l-nibble
-	lds temp, low_fuse	;
-	add temp, 0x01		;
-        sts low_fuse, temp      ;
+	alf:			; l-nibble НЕ ДОБАВЛЯЕТСЯ ЗДЕСЬ ГДЕ-ТО
+	;rcall error		; debug (сюда попали)
+	lds temp, low_fuse	; прочитали фьюз из памяти в регистр
+	ldi temp2, 0x01		; подготовили единичку
+	add temp, temp2		; прибавили к регистру
+        sts low_fuse, temp      ; записали регистр обратно в память
         rjmp l3end		;
+
 
 	add_hf:			;
         rjmp l3end	        ;
@@ -984,10 +990,10 @@ ret                             ;
 print_fuses:                	        ;
         lds data, low_fuse             	;
         ldi temp, 0                     ;
-        mov column, temp                ; column 1
-        ldi temp, 1                     ;
+        mov column, temp                ; column 0
+        inc temp		        ;
         mov row, temp                   ; row 1
-	rcall lcd_cur			;
+	rcall lcd_cur			; !!!!! CLEARS DATA REGISTER
         rcall print_hex_byte           	; low fuse
 
         lds data, high_fuse            	;
