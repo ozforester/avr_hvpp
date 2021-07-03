@@ -5,7 +5,7 @@
 ; ATmega8 @4MHz internal osc. (H:D9, L:23)
 ; JHD162A HD44780 via twi extension PCF8574AT
 ; Four buttons pad voltage divider connected to adc port.
-; Two DIP28 sockets. One for programmer and one for target chip
+; Two DIP28 sockets. One for programmer another for target chip
 ; Schematics and PCB sources: https://github.com/ozforester/avr_hvpp/hardware
 ; It utilizes AVR HVPP protocol to change fuses or erase flash and eeprom
 ; lcd twi address autodetected each time this programmer switched on
@@ -225,7 +225,8 @@ hvpp_menu:
         cp key, oldkey         	; same key
         breq menu_loop         	;
         mov oldkey, key        	; new key
-	; --- MENU ACTIONS ---
+
+	; --- KEYS ---
 	cpi key, 1		;
 	brne m1			;
 	rjmp pressed_esc	;
@@ -279,29 +280,30 @@ hvpp_menu:
         mov level, temp         ;
 	ent1:			;
         rcall menu_action       ;
-	; --- MENU MESSAGES ---
+
+	; --- ACTIONS ---
 	menu_action:		; messages w/ accordance to states
 	cpi key, 0		;
 	brne actions		;
 	rcall error		; wrong state
 	actions:		;
-	ldi temp, 0		;
+	ldi temp, 0		; 0
 	cpse level, temp	; level 0 (choose command)
 	rjmp am1		;
 	rjmp level0		;
 	am1:			;
-	inc temp		;
+	inc temp		; 1
 	cpse level, temp	; level 1 (get signature, erase flash, read fuses)
 	rjmp am2		;
 	rjmp level1		;
 	am2:			;
-        inc temp                ;
+        inc temp                ; 2
         cpse level, temp        ; level 2 (choose fuse)
         rjmp am3                ;
         rjmp level2             ;
 	am3:			;
-       inc temp                ;
-        cpse level, temp        ; level 3 (change fuse)
+	inc temp                ; 3
+        cpse level, temp        ; level 3 (edit fuse)
         rjmp am4                ;
         rjmp level3             ;
         am4:                    ;
@@ -333,24 +335,24 @@ hvpp_menu:
         ldi len, msg3  	 	; "fuses"
         rcall print_msg	 	;
         rjmp menu_loop 	 	;
-	level1:				;
-        ldi temp, 0             	;
-        cp item, temp           	;
-        breq l1i0               	;
-        ldi temp, 1                     ;
-        cp item, temp                   ;
-        breq l1i1                       ;
-        ldi temp, 2    			;
-        cp item, temp  			;
-        breq l1i2	   		;
-	rcall error			;
-	l1i0:				;
-        rcall lcd_clr           	;
-        ldi len, msg1           	; "signature"
-        rcall print_msg         	;
-	rcall hvpp_read_signature	;
-	rcall print_signature		;
-        rjmp menu_loop          	;
+	level1:			;
+        ldi temp, 0            	;
+        cp item, temp          	;
+        breq l1i0              	;
+        ldi temp, 1      	;
+        cp item, temp           ;
+        breq l1i1               ;
+        ldi temp, 2    		;
+        cp item, temp  		;
+        breq l1i2	   	;
+	rcall error		;
+	l1i0:			;
+        rcall lcd_clr           ;
+        ldi len, msg1           ; "signature"
+        rcall print_msg         ;
+	rcall hvpp_read_signature;
+	rcall print_signature	;
+        rjmp menu_loop          ;
         l1i1:                   ;
 	clr temp		;
 	mov column, temp	;
@@ -371,87 +373,150 @@ hvpp_menu:
         rcall lcd_clr   	;
         ldi len, msg4   	; "LF---LB"
         rcall print_msg 	;
-	rcall hvpp_read_fuses	;
-	rcall print_fuses	;
+	rcall hvpp_read_fuses	; fuses read (ok)
+	rcall print_fuses	; fuses print 23 d9 ff ff (ok)
         rjmp menu_loop  	;
 	level2:			;
         ;ldi temp, 2     	;
         ;cp item, temp  	;
         ;breq l2i2	   	;
         ;rjmp menu_loop  	;
-	l2i2:			;
+	;l2i2:			;
         rcall lcd_clr   	;
 	clr temp		;
 	mov row, temp		; row 0
 	mov column, item	; pos = item
 	rcall lcd_cur		; 0, pos
         ldi len, msg5		; "="
-        rcall print_msg 	;
-	rcall print_fuses	;
+        rcall print_msg 	; prints =
+	rcall print_fuses	; printd 23 d9 ff ff
         rjmp menu_loop  	;
 
-        level3:                 ; нажат энтер на выбранном ниббле фьюза
-        ;rcall error             ; debug (сюда попадаем)
+        level3:                 ; энтер на нибле фьюза
 	mov temp, item		;
 	cpi temp, 0		;
 	breq l3a		;
         cpi temp, 1             ;
-        breq l3a                ;
+        breq l3b                ;
         cpi temp, 4             ;
-        breq l3b                ;
+        breq l3c                ;
         cpi temp, 5             ;
-        breq l3b                ;
+        breq l3d                ;
         cpi temp, 8             ;
-        breq l3c                ;
+        breq l3e                ;
         cpi temp, 9             ;
-        breq l3c                ;
+        breq l3f                ;
         cpi temp, 12            ;
-        breq l3d                ;
+        breq l3g                ;
         cpi temp, 13            ;
-        breq l3d                ;
+        breq l3h                ;
         l3end:                  ;
         ldi temp, 2             ;
-        mov item, temp          ;
+        ;mov item, temp          ;
         mov level, temp         ;
-        rjmp menu_loop          ;
+        ;rjmp menu_loop          ;
+rjmp menu_action
 
 	l3a:			;
-        ;rcall error             ; debug (сюда попали)
-        rjmp add_lf             ;
+        rjmp add_lf_h           ;
         l3b:                    ;
-        rjmp add_hf             ;
+        rjmp add_lf_l           ;
 	l3c:			;
-        rjmp add_ef             ;
+        rjmp add_hf_h           ;
 	l3d:			;
-        rjmp add_lb             ;
+        rjmp add_hf_l           ;
+        l3e:                    ;
+        rjmp add_ef_h           ;
+        l3f:                    ;
+        rjmp add_ef_l           ;
+        l3g:                    ;
+        rjmp add_lb_h           ;
+        l3h:                    ;
+        rjmp add_lb_l           ;
 
-	add_lf:			;
-        ;rcall error             ; debug (сюда попали)
-	cpi temp, 0		;
-	breq alf		;
-	;rcall error		; debug (сюда попадаем с 1 позицией)
-	lds temp, low_fuse	; h-nibble
+	add_lf_h:		;
+	lds temp, low_fuse	;
 	ldi temp2, 0x10		;
 	add temp, temp2		;
 	sts low_fuse, temp	;
         rjmp l3end		;
-	alf:			; l-nibble НЕ ДОБАВЛЯЕТСЯ ЗДЕСЬ ГДЕ-ТО
-	;rcall error		; debug (сюда попали)
-	lds temp, low_fuse	; прочитали фьюз из памяти в регистр
-	ldi temp2, 0x01		; подготовили единичку
-	add temp, temp2		; прибавили к регистру
-        sts low_fuse, temp      ; записали регистр обратно в память
-        rjmp l3end		;
 
-
-	add_hf:			;
-        rjmp l3end	        ;
-
-	add_ef:			;
+        add_lf_l:               ;
+        lds temp, low_fuse      ;
+	mov temp2, temp		;
+	andi temp2, 0xF		;
+	cpi temp2, 0xF		;
+	breq clrt1		;
+	inc temp		;
+        sts low_fuse, temp      ;
         rjmp l3end              ;
-	add_lb:			;
+	clrt1:			;
+        andi temp,0xF0	        ;
+        sts low_fuse, temp      ;
+        rjmp l3end              ;
 
-        rjmp l3end	        ;
+        add_hf_h:               ;
+        lds temp, high_fuse      ;
+        ldi temp2, 0x10         ;
+        add temp, temp2         ;
+        sts high_fuse, temp      ;
+        rjmp l3end              ;
+
+        add_hf_l:               ;
+        lds temp, high_fuse      ;
+        mov temp2, temp         ;
+        andi temp2, 0xF         ;
+        cpi temp2, 0xF          ;
+        breq clrt2               ;
+        inc temp                ;
+        sts high_fuse, temp      ;
+        rjmp l3end              ;
+        clrt2:                   ;
+        andi temp,0xF0          ;
+        sts high_fuse, temp      ;
+        rjmp l3end              ;
+
+        add_ef_h:               ;
+        lds temp, ext_fuse      ;
+        ldi temp2, 0x10         ;
+        add temp, temp2         ;
+        sts ext_fuse, temp      ;
+        rjmp l3end              ;
+
+        add_ef_l:               ;
+        lds temp, ext_fuse      ;
+        mov temp2, temp         ;
+        andi temp2, 0xF         ;
+        cpi temp2, 0xF          ;
+        breq clrt3               ;
+        inc temp                ;
+        sts ext_fuse, temp      ;
+        rjmp l3end              ;
+        clrt3:                   ;
+        andi temp,0xF0          ;
+        sts ext_fuse, temp      ;
+        rjmp l3end              ;
+
+        add_lb_h:               ;
+        lds temp, lock_byte      ;
+        ldi temp2, 0x10         ;
+        add temp, temp2         ;
+        sts lock_byte, temp      ;
+        rjmp l3end              ;
+
+        add_lb_l:               ;
+        lds temp, lock_byte      ;
+        mov temp2, temp         ;
+        andi temp2, 0xF         ;
+        cpi temp2, 0xF          ;
+        breq clrt4               ;
+        inc temp                ;
+        sts lock_byte, temp      ;
+        rjmp l3end              ;
+        clrt4:                   ;
+        andi temp,0xF0          ;
+        sts lock_byte, temp      ;
+        rjmp l3end              ;
 
 ret
 
@@ -988,36 +1053,36 @@ ret                             ;
 ; ----------------- P R I N T I N G -----------------
 
 print_fuses:                	        ;
-        lds data, low_fuse             	;
         ldi temp, 0                     ;
         mov column, temp                ; column 0
         inc temp		        ;
         mov row, temp                   ; row 1
-	rcall lcd_cur			; !!!!! CLEARS DATA REGISTER
+	rcall lcd_cur			;
+        lds char, low_fuse              ;
         rcall print_hex_byte           	; low fuse
 
-        lds data, high_fuse            	;
         ldi temp, 4                     ;
         mov column, temp                ; column 1
         ldi temp, 1                     ;
         mov row, temp                   ; row 1
         rcall lcd_cur                   ;
+        lds char, high_fuse             ;
         rcall print_hex_byte           	; high fuse
 
-        lds data, ext_fuse             	;
         ldi temp, 8                     ;
         mov column, temp                ; column 1
         ldi temp, 1                     ;
         mov row, temp                   ; row 1
         rcall lcd_cur                   ;
+        lds char, ext_fuse              ;
         rcall print_hex_byte           	; ext fuse
 
-        lds data, lock_byte            	;
         ldi temp, 12                    ;
         mov column, temp                ; column 1
         ldi temp, 1                     ;
         mov row, temp                   ; row 1
         rcall lcd_cur                   ;
+        lds char, lock_byte             ;
         rcall print_hex_byte           	; lock byte
 ret                                    	;
 
@@ -1086,8 +1151,6 @@ print_ok:			;
 	ldi len, msg15		;
 	rcall print_msg		;
         rcall delay_100ms       ;
-        rcall delay_100ms       ;
-	rcall delay_100ms	;
 ret				;
 
 print_start:                    ;
@@ -1123,7 +1186,7 @@ print_eeprom_byte:		;
 	rcall twi_stop		;
 ret				;
 
-print_hex_byte:			;
+print_hex_byte:			; use char reg
         rcall twi_start         ;
         rcall twi_sla_w         ;
 	; high tetr
