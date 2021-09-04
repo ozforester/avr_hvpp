@@ -172,6 +172,13 @@ main:				;
         main1:                  ;
         rcall pcf_high          ;
         rcall lcd_init          ;
+
+#define DIGIT 1234
+ldi zl, lo8(DIGIT)
+ldi zh, hi8(DIGIT)
+rcall print_ascii
+rcall loop
+
         rcall adc_init          ;
 	rcall keys_init		;
 	rcall hvpp_init		;
@@ -225,7 +232,7 @@ hvpp_menu:
         cp key, oldkey         	; same key
         breq menu_loop         	;
         mov oldkey, key        	; new key
-	; --- MENU ACTIONS ---
+	; --- MENU KEYS ---
 	cpi key, 1		;
 	brne m1			;
 	rjmp pressed_esc	;
@@ -300,8 +307,8 @@ hvpp_menu:
         rjmp am3                ;
         rjmp level2             ;
 	am3:			;
-       inc temp                ;
-        cpse level, temp        ; level 3 (change fuse)
+	inc temp                ;
+        cpse level, temp        ; level 3 (edit fuse)
         rjmp am4                ;
         rjmp level3             ;
         am4:                    ;
@@ -371,44 +378,43 @@ hvpp_menu:
         rcall lcd_clr   	;
         ldi len, msg4   	; "LF---LB"
         rcall print_msg 	;
-	rcall hvpp_read_fuses	;
-	rcall print_fuses	;
+	rcall hvpp_read_fuses	; fuses read (ok)
+	rcall print_fuses	; fuses print 23 d9 ff ff (ok)
         rjmp menu_loop  	;
 	level2:			;
         ;ldi temp, 2     	;
         ;cp item, temp  	;
         ;breq l2i2	   	;
         ;rjmp menu_loop  	;
-	l2i2:			;
+	;l2i2:			;
         rcall lcd_clr   	;
 	clr temp		;
 	mov row, temp		; row 0
 	mov column, item	; pos = item
 	rcall lcd_cur		; 0, pos
         ldi len, msg5		; "="
-        rcall print_msg 	;
-	rcall print_fuses	;
+        rcall print_msg 	; prints =
+	rcall print_fuses	; printd 23 d9 ff ff
         rjmp menu_loop  	;
 
-        level3:                 ; нажат энтер на выбранном ниббле фьюза
-        ;rcall error             ; debug (сюда попадаем)
+        level3:                 ; энтер на нибле фьюза
 	mov temp, item		;
 	cpi temp, 0		;
 	breq l3a		;
         cpi temp, 1             ;
-        breq l3a                ;
+        breq l3b                ;
         cpi temp, 4             ;
-        breq l3b                ;
+        breq l3c                ;
         cpi temp, 5             ;
-        breq l3b                ;
+        breq l3d                ;
         cpi temp, 8             ;
-        breq l3c                ;
+        breq l3e                ;
         cpi temp, 9             ;
-        breq l3c                ;
+        breq l3f                ;
         cpi temp, 12            ;
-        breq l3d                ;
+        breq l3g                ;
         cpi temp, 13            ;
-        breq l3d                ;
+        breq l3h                ;
         l3end:                  ;
         ldi temp, 2             ;
         mov item, temp          ;
@@ -416,41 +422,48 @@ hvpp_menu:
         rjmp menu_loop          ;
 
 	l3a:			;
-        ;rcall error             ; debug (сюда попали)
-        rjmp add_lf             ;
+        rjmp add_lf_h           ;
         l3b:                    ;
-        rjmp add_hf             ;
+        rjmp add_lf_l           ;
 	l3c:			;
-        rjmp add_ef             ;
+        rjmp add_hf_h           ;
 	l3d:			;
-        rjmp add_lb             ;
+        rjmp add_hf_l           ;
+        l3e:                    ;
+        rjmp add_ef_h           ;
+        l3f:                    ;
+        rjmp add_ef_l           ;
+        l3g:                    ;
+        rjmp add_lb_h           ;
+        l3h:                    ;
+        rjmp add_lb_l           ;
 
-	add_lf:			;
-        ;rcall error             ; debug (сюда попали)
-	cpi temp, 0		;
-	breq alf		;
-	;rcall error		; debug (сюда попадаем с 1 позицией)
-	lds temp, low_fuse	; h-nibble
+	add_lf_h:		;
+	lds temp, low_fuse	; low fuse high nibble
 	ldi temp2, 0x10		;
 	add temp, temp2		;
 	sts low_fuse, temp	;
         rjmp l3end		;
-	alf:			; l-nibble НЕ ДОБАВЛЯЕТСЯ ЗДЕСЬ ГДЕ-ТО
-	;rcall error		; debug (сюда попали)
-	lds temp, low_fuse	; прочитали фьюз из памяти в регистр
-	ldi temp2, 0x01		; подготовили единичку
-	add temp, temp2		; прибавили к регистру
-        sts low_fuse, temp      ; записали регистр обратно в память
-        rjmp l3end		;
 
-
-	add_hf:			;
-        rjmp l3end	        ;
-
-	add_ef:			;
+        add_lf_l:               ;
         rjmp l3end              ;
-	add_lb:			;
 
+        add_hf_h:               ;
+        rjmp l3end              ;
+
+        add_hf_l:               ;
+        rjmp l3end              ;
+
+        add_ef_h:               ;
+        rjmp l3end              ;
+
+        add_ef_l:               ;
+        rjmp l3end              ;
+
+        add_lb_h:               ;
+        rjmp l3end              ;
+
+        add_lb_l:               ;
         rjmp l3end	        ;
 
 ret
@@ -988,36 +1001,36 @@ ret                             ;
 ; ----------------- P R I N T I N G -----------------
 
 print_fuses:                	        ;
-        lds data, low_fuse             	;
         ldi temp, 0                     ;
         mov column, temp                ; column 0
         inc temp		        ;
         mov row, temp                   ; row 1
-	rcall lcd_cur			; !!!!! CLEARS DATA REGISTER
+	rcall lcd_cur			;
+        lds char, low_fuse              ;
         rcall print_hex_byte           	; low fuse
 
-        lds data, high_fuse            	;
         ldi temp, 4                     ;
         mov column, temp                ; column 1
         ldi temp, 1                     ;
         mov row, temp                   ; row 1
         rcall lcd_cur                   ;
+        lds char, high_fuse             ;
         rcall print_hex_byte           	; high fuse
 
-        lds data, ext_fuse             	;
         ldi temp, 8                     ;
         mov column, temp                ; column 1
         ldi temp, 1                     ;
         mov row, temp                   ; row 1
         rcall lcd_cur                   ;
+        lds char, ext_fuse              ;
         rcall print_hex_byte           	; ext fuse
 
-        lds data, lock_byte            	;
         ldi temp, 12                    ;
         mov column, temp                ; column 1
         ldi temp, 1                     ;
         mov row, temp                   ; row 1
         rcall lcd_cur                   ;
+        lds char, lock_byte             ;
         rcall print_hex_byte           	; lock byte
 ret                                    	;
 
@@ -1086,8 +1099,6 @@ print_ok:			;
 	ldi len, msg15		;
 	rcall print_msg		;
         rcall delay_100ms       ;
-        rcall delay_100ms       ;
-	rcall delay_100ms	;
 ret				;
 
 print_start:                    ;
@@ -1123,7 +1134,7 @@ print_eeprom_byte:		;
 	rcall twi_stop		;
 ret				;
 
-print_hex_byte:			;
+print_hex_byte:			; use char reg
         rcall twi_start         ;
         rcall twi_sla_w         ;
 	; high tetr
@@ -1148,51 +1159,46 @@ print_hex_byte:			;
         rcall twi_stop          ;
 ret				;
 
-print_ascii:			;
-        rcall twi_start         ;
+print_ascii:			; print number as ascii
+        rcall twi_start         ; "1234"
         rcall twi_sla_w         ;
-
-        ; if < 1000 go 100
-        cpi zh, 0x03            ;
+	ldi temp, 0xe8		; compare to 1000
+        cp zl, temp            	;
+        ldi temp, 0x03		;
+        cpc zh, temp		;
         brlo pa2                ;
-        cpi zl, 0xe8            ;
-        brlo pa2                ;
-
-        pa1:                    ;
-        ldi char, 0x2f          ; x1000
+        ldi char, 0x2f          ; "/"
         clc                     ;
-        b1000:                  ;
-        inc char                ;
-        subi zl, 0xe8           ;
+        b1000: inc char         ; 0 1 2 3 .. 9
+        subi zl, 0xe8           ; -1000
         sbci zh, 0x03           ;
-        brcc b1000              ;
-        rcall lcd_char          ; send char via twi
-        subi zl, 0x18           ;
-        subi zh, 0xfc           ; 1000 rev
-        pa2:
-        ldi char, 0x2f          ; x100
+        brcc b1000              ; till it lower
+        subi zl, 0x18           ; -(-1000) (add 1000 back)
+        sbci zh, 0xfc           ;
+        rcall lcd_char          ; send char "1"
+
+        pa2: ldi char, 0x2f     ;
         clc                     ;
-        b100:                   ;
-        inc char                ;
-        subi zl, 0x64           ;
+        b100: inc char          ;
+        subi zl, 0x64           ; -100
         sbci zh, 0x00           ;
         brcc b100               ;
-        rcall lcd_char          ; send char via twi
-        subi zl, 0x9c           ; 100 rev
-        subi zh, 0xff           ;
+        subi zl, 0x9c           ; add 100 back
+        sbci zh, 0xff           ;
+        rcall lcd_char          ; send char "2"
 
-        ldi char, 0x2f          ; x10
+        ldi char, 0x2f          ; -10
         clc                     ;
-        b10:                    ;
-        inc char                ;
-        subi zl, 0x0a           ;
+        b10: inc char           ;
+        subi zl, 10             ;
         brcc b10                ;
-        rcall lcd_char          ; send char
-        subi zl, 0xf6           ; 10 rev
+        subi zl, 0xf6           ; add 10 back
+        rcall lcd_char          ; send char "3"
 
-        mov char, zl            ; x1
+        mov char, zl            ; -1
         subi char, 0xd0         ;
-        rcall lcd_char          ; send char
+        rcall lcd_char          ; send char "4"
+
         rcall twi_stop          ;
 ret				;
 
