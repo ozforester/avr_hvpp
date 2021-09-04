@@ -172,13 +172,6 @@ main:				;
         main1:                  ;
         rcall pcf_high          ;
         rcall lcd_init          ;
-
-#define DIGIT 1234
-ldi zl, lo8(DIGIT)
-ldi zh, hi8(DIGIT)
-rcall print_ascii
-rcall loop
-
         rcall adc_init          ;
 	rcall keys_init		;
 	rcall hvpp_init		;
